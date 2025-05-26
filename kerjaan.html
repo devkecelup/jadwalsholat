@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SholatQuest - PMO Free Journey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pixelate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .game-card:hover {
+            animation: pixelate 0.3s ease;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
+        }
+        .pixel-border {
+            border: 4px solid #4a5568;
+            box-shadow: 5px 5px 0 #2d3748;
+        }
+        .pixel-text {
+            text-shadow: 2px 2px 0 #4a5568;
+        }
+        .progress-bar {
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            transition: width 0.5s ease;
+        }
+        .sholat-time {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            position: relative;
+        }
+        .sholat-time.current {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            animation: pulse 2s infinite;
+        }
+        .sholat-time.missed {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+        }
+        .sholat-time.completed {
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .floating-btn {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+        .city-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+        }
+        .city-btn {
+            padding: 8px 12px;
+            background: #374151;
+            border: 2px solid #6b7280;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .city-btn:hover {
+            background: #4b5563;
+            border-color: #3b82f6;
+        }
+        .city-btn.active {
+            background: #3b82f6;
+            border-color: #1d4ed8;
+        }
+        .realtime-indicator {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: blink 2s infinite;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold mb-2 text-blue-400 pixel-text">SholatQuest</h1>
+            <p class="text-gray-400">Your game-style PMO-free journey with real-time sholat tracking</p>
+            
+            <!-- City Selector -->
+            <div class="mt-4 bg-gray-800 p-4 rounded-lg pixel-border">
+                <h3 class="text-lg font-bold mb-3 text-blue-300">Select Your City</h3>
+                <div class="city-grid" id="citySelector">
+                    <!-- Cities will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mt-6 bg-gray-800 p-4 rounded-lg pixel-border">
+                <h2 class="text-xl font-bold mb-2 text-center text-green-300">Weekly Challenge</h2>
+                <p class="text-sm text-gray-300 mb-2">No PMO + Complete All Sholat for 7 days</p>
+                <div class="progress-bar">
+                    <div id="weeklyProgress" class="progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="mt-2 text-sm text-gray-400">Progress: <span id="progressText">0/7 days</span></p>
+                <p class="text-xs text-yellow-300 mt-1">Reward: Waffle + Es Krim Cokelat & Goose Goose Duck Stiker!</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column - Sholat Times -->
+            <div class="lg:col-span-2">
+                <!-- Real-time Clock -->
+                <div class="p-4 bg-gray-800 rounded-lg pixel-border mb-4 text-center">
+                    <div class="realtime-indicator"></div>
+                    <h3 class="text-sm text-gray-400 mb-1">Current Time</h3>
+                    <p id="currentTime" class="text-2xl font-bold text-green-400">--:--:--</p>
+                    <p id="currentDate" class="text-sm text-gray-300">Loading...</p>
+                </div>
+                
+                <!-- Sholat Times Card -->
+                <div class="p-6 bg-gray-800 rounded-lg pixel-border mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-blue-300">Today's Sholat Times</h2>
+                        <span id="selectedCity" class="px-3 py-1 bg-blue-600 rounded-lg text-sm">Jakarta</span>
+                    </div>
+                    
+                    <div id="loadingTimes" class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+                        <p class="mt-2 text-gray-400">Loading prayer times...</p>
+                    </div>
+                    
+                    <div id="sholatTimes" class="grid grid-cols-1 gap-3 hidden">
+                        <!-- Sholat times will be inserted here -->
+                    </div>
+                    
+                    <div id="errorMessage" class="text-center text-red-400 py-4 hidden">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p class="mt-1">Couldn't load prayer times. Please try again.</p>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-gray-700">
+                        <p class="text-sm text-gray-400"><i class="fas fa-info-circle mr-1"></i> Next prayer: <span id="nextPrayer" class="font-bold text-yellow-300">-</span></p>
+                        <p class="text-xs text-gray-500 mt-1">Time remaining: <span id="timeRemaining" class="text-white">-</span></p>
+                    </div>
+                </div>
+                
+                <!-- Daily Goals Card -->
+                <div class="p-6 bg-gray-800 rounded-lg pixel-border">
+                    <h2 class="text-xl font-bold mb-4 text-blue-300">Today's Quests</h2>
+                    <div id="dailyGoals">
+                        <!-- Goals will be inserted here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column - Trackers & Rewards -->
+            <div>
+                <!-- Sholat Statistics -->
+                <div class="p-6 bg-gray-800 rounded-lg pixel-border mb-6">
+                    <h2 class="text-xl font-bold mb-4 text-blue-300">Today's Sholat Stats</h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-green-400"><i class="fas fa-check-circle mr-2"></i>Completed:</span>
+                            <span id="completedCount" class="font-bold">0/5</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-red-400"><i class="fas fa-times-circle mr-2"></i>Missed:</span>
+                            <span id="missedCount" class="font-bold">0/5</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yellow-400"><i class="fas fa-clock mr-2"></i>Current:</span>
+                            <span id="currentPrayer" class="font-bold">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- PMO Tracker -->
+                <div class="p-6 bg-gray-800 rounded-lg pixel-border mb-6">
+                    <h2 class="text-xl font-bold mb-4 text-blue-300">PMO Free Tracker</h2>
+                    <div class="text-center mb-4">
+                        <p class="text-sm text-gray-300">Current streak:</p>
+                        <p id="pmoStreak" class="text-3xl font-bold text-green-400">0 days</p>
+                    </div>
+                    <button id="pmoResetBtn" class="w-full py-2 bg-red-600 rounded-lg hover:bg-red-700 transition">
+                        <i class="fas fa-sync-alt mr-2"></i>Reset Counter
+                    </button>
+                    <p class="text-xs text-gray-400 mt-2 text-center">Press if you broke your streak</p>
+                </div>
+                
+                <!-- Rewards -->
+                <div class="p-6 bg-gray-800 rounded-lg pixel-border">
+                    <h2 class="text-xl font-bold mb-4 text-blue-300">Your Rewards</h2>
+                    <div id="rewardsList" class="space-y-3">
+                        <!-- Rewards will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="fixed bottom-4 right-4 space-y-2 z-50 w-72"></div>
+
+    <!-- Floating Action Button -->
+    <button id="addGoalBtn" class="fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl hover:bg-blue-700 transition floating-btn">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- Add Goal Modal -->
+    <div id="goalModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 pixel-border">
+            <h2 class="text-xl font-bold mb-4 text-blue-300">Add New Quest</h2>
+            <div class="mb-4">
+                <label class="block text-gray-400 mb-2">Quest Name</label>
+                <input type="text" id="goalName" placeholder="e.g. Sholat Dhuha" class="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-400 mb-2">Schedule Time</label>
+                <input type="time" id="goalTime" class="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-400 mb-2">Reward</label>
+                <input type="text" id="goalReward" placeholder="e.g. Es krim cokelat" class="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button id="cancelGoalBtn" class="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-700 transition">Cancel</button>
+                <button id="saveGoalBtn" class="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition">Save Quest</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const citySelector = document.getElementById('citySelector');
+            const selectedCity = document.getElementById('selectedCity');
+            const currentTime = document.getElementById('currentTime');
+            const currentDate = document.getElementById('currentDate');
+            const loadingTimes = document.getElementById('loadingTimes');
+            const sholatTimes = document.getElementById('sholatTimes');
+            const errorMessage = document.getElementById('errorMessage');
+            const nextPrayer = document.getElementById('nextPrayer');
+            const timeRemaining = document.getElementById('timeRemaining');
+            const currentPrayer = document.getElementById('currentPrayer');
+            const completedCount = document.getElementById('completedCount');
+            const missedCount = document.getElementById('missedCount');
+            const dailyGoals = document.getElementById('dailyGoals');
+            const pmoStreak = document.getElementById('pmoStreak');
+            const pmoResetBtn = document.getElementById('pmoResetBtn');
+            const rewardsList = document.getElementById('rewardsList');
+            const weeklyProgress = document.getElementById('weeklyProgress');
+            const progressText = document.getElementById('progressText');
+            const notificationContainer = document.getElementById('notificationContainer');
+            const addGoalBtn = document.getElementById('addGoalBtn');
+            const goalModal = document.getElementById('goalModal');
+            const cancelGoalBtn = document.getElementById('cancelGoalBtn');
+            const saveGoalBtn = document.getElementById('saveGoalBtn');
+            const goalName = document.getElementById('goalName');
+            const goalTime = document.getElementById('goalTime');
+            const goalReward = document.getElementById('goalReward');
+
+            // App State
+            const API_URL = 'https://api.aladhan.com/v1/timingsByAddress';
+            let currentCityName = 'Jakarta';
+            let prayerTimes = null;
+            let prayerTimesDate = null;
+            let sholatStatus = {};
+            let realTimeInterval = null;
+
+            // Indonesian Cities
+            const cities = [
+                'Jakarta', 'Surabaya', 'Bandung', 'Medan', 'Semarang', 
+                'Makassar', 'Palembang', 'Tangerang', 'Depok', 'Bekasi',
+                'Padang', 'Malang', 'Samarinda', 'Batam', 'Bandar Lampung',
+                'Yogyakarta', 'Solo', 'Bogor', 'Pekanbaru', 'Balikpapan'
+            ];
+
+            // Initialize the app
+            initApp();
+
+            // Event Listeners
+            pmoResetBtn.addEventListener('click', resetPmoStreak);
+            addGoalBtn.addEventListener('click', () => goalModal.classList.remove('hidden'));
+            cancelGoalBtn.addEventListener('click', () => goalModal.classList.add('hidden'));
+            saveGoalBtn.addEventListener('click', saveNewGoal);
+
+            // Initialize app
+            function initApp() {
+                setupCitySelector();
+                loadSavedCity();
+                loadPmoStreak();
+                loadWeeklyProgress();
+                loadCustomGoals();
+                loadRewards();
+                loadSholatStatus();
+                
+                // Start real-time updates
+                startRealTimeUpdates();
+                
+                // Fetch prayer times
+                fetchPrayerTimes();
+                
+                // Request notification permission
+                if ('Notification' in window) {
+                    Notification.requestPermission();
+                }
+            }
+
+            // Setup city selector
+            function setupCitySelector() {
+                let html = '';
+                cities.forEach(city => {
+                    html += `<button class="city-btn" data-city="${city}">${city}</button>`;
+                });
+                citySelector.innerHTML = html;
+                
+                // Add event listeners
+                citySelector.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('city-btn')) {
+                        selectCity(e.target.dataset.city);
+                    }
+                });
+            }
+
+            // Select city
+            function selectCity(city) {
+                currentCityName = city;
+                selectedCity.textContent = city;
+                
+                // Update active state
+                document.querySelectorAll('.city-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector(`[data-city="${city}"]`).classList.add('active');
+                
+                // Save selected city
+                saveCity(city);
+                
+                // Reset sholat status for new city
+                resetSholatStatus();
+                
+                // Fetch new prayer times
+                fetchPrayerTimes();
+            }
+
+            // Save selected city
+            function saveCity(city) {
+                localStorage.setItem('selectedCity', city);
+            }
+
+            // Load saved city
+            function loadSavedCity() {
+                const saved = localStorage.getItem('selectedCity');
+                if (saved && cities.includes(saved)) {
+                    selectCity(saved);
+                } else {
+                    selectCity('Jakarta');
+                }
+            }
+
+            // Start real-time updates
+            function startRealTimeUpdates() {
+                updateCurrentTime();
+                realTimeInterval = setInterval(() => {
+                    updateCurrentTime();
+                    checkPrayerStatus();
+                    updateNextPrayer();
+                }, 1000);
+            }
+
+            // Update current time
+            function updateCurrentTime() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('id-ID');
+                const dateStr = now.toLocaleDateString('id-ID', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                
+                currentTime.textContent = timeStr;
+                currentDate.textContent = dateStr;
+            }
+
+            // Fetch prayer times from API
+            function fetchPrayerTimes() {
+                showLoading();
+                const apiUrl = `${API_URL}?address=${currentCityName},Indonesia&method=2`;
+                
+                fetch(apiUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.code === 200 && data.data) {
+                            prayerTimes = data.data.timings;
+                            prayerTimesDate = data.data.date.readable;
+                            displayPrayerTimes();
+                            updateSholatStats();
+                            updateNextPrayer();
+                        } else {
+                            showError();
+                        }
+                    })
+                    .catch(error => {
+                        console.error("API error:", error);
+                        showError();
+                    });
+            }
+
+            // Display prayer times with real-time status
+            function displayPrayerTimes() {
+                const prayersToShow = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                
+                let html = '';
+                prayersToShow.forEach(prayer => {
+                    const time = formatTimeForDisplay(prayerTimes[prayer]);
+                    const status = getSholatStatus(prayer);
+                    const statusClass = getStatusClass(prayer);
+                    
+                    html += `
+                        <div class="sholat-time ${statusClass} p-4 rounded-lg flex items-center justify-between">
+                            <div class="flex-grow">
+                                <h3 class="font-bold text-lg">${getPrayerName(prayer)}</h3>
+                                <p class="text-sm text-gray-200">${time}</p>
+                                <p class="text-xs text-gray-300 mt-1">${status}</p>
+                            </div>
+                            <div class="flex flex-col items-end space-y-2">
+                                <button onclick="markSholatCompleted('${prayer}')" 
+                                        class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition ${sholatStatus[prayer] === 'completed' ? 'opacity-50' : ''}"
+                                        ${sholatStatus[prayer] === 'completed' ? 'disabled' : ''}>
+                                    <i class="fas fa-check mr-1"></i>Done
+                                </button>
+                                <button onclick="markSholatMissed('${prayer}')" 
+                                        class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition ${sholatStatus[prayer] === 'missed' ? 'opacity-50' : ''}"
+                                        ${sholatStatus[prayer] === 'missed' ? 'disabled' : ''}>
+                                    <i class="fas fa-times mr-1"></i>Miss
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                sholatTimes.innerHTML = html;
+                hideLoading();
+                sholatTimes.classList.remove('hidden');
+                errorMessage.classList.add('hidden');
+            }
+
+            // Get sholat status text
+            function getSholatStatus(prayer) {
+                const status = sholatStatus[prayer];
+                const isPast = isPrayerTimePast(prayer);
+                const isCurrent = isCurrentPrayerTime(prayer);
+                
+                if (status === 'completed') return 'Alhamdulillah! ✅';
+                if (status === 'missed') return 'Missed 😞';
+                if (isCurrent) return 'Time to pray! 🕌';
+                if (isPast) return 'Time passed ⏰';
+                return 'Upcoming 🕐';
+            }
+
+            // Get status class for styling
+            function getStatusClass(prayer) {
+                const status = sholatStatus[prayer];
+                const isCurrent = isCurrentPrayerTime(prayer);
+                
+                if (status === 'completed') return 'completed';
+                if (status === 'missed') return 'missed';
+                if (isCurrent) return 'current';
+                return '';
+            }
+
+            // Check if prayer time has passed
+            function isPrayerTimePast(prayer) {
+                if (!prayerTimes) return false;
+                
+                const now = new Date();
+                const [hours, minutes] = prayerTimes[prayer].split(':').map(Number);
+                const prayerTime = new Date();
+                prayerTime.setHours(hours, minutes, 0, 0);
+                
+                return now > prayerTime;
+            }
+
+            // Check if it's current prayer time (within 30 minutes)
+            function isCurrentPrayerTime(prayer) {
+                if (!prayerTimes) return false;
+                
+                const now = new Date();
+                const [hours, minutes] = prayerTimes[prayer].split(':').map(Number);
+                const prayerTime = new Date();
+                prayerTime.setHours(hours, minutes, 0, 0);
+                
+                const timeDiff = Math.abs(now - prayerTime);
+                return timeDiff <= 30 * 60 * 1000; // 30 minutes
+            }
+
+            // Check prayer status automatically
+            function checkPrayerStatus() {
+                if (!prayerTimes) return;
+                
+                const prayersToShow = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                let statusChanged = false;
+                
+                prayersToShow.forEach(prayer => {
+                    if (sholatStatus[prayer] !== 'completed' && sholatStatus[prayer] !== 'missed') {
+                        const isPast = isPrayerTimePast(prayer);
+                        const isCurrent = isCurrentPrayerTime(prayer);
+                        
+                        // Auto-notify when prayer time arrives
+                        if (isCurrent && sholatStatus[prayer] !== 'notified') {
+                            showNotification(`Time for ${getPrayerName(prayer)} prayer!`, 'info');
+                            sholatStatus[prayer] = 'notified';
+                            statusChanged = true;
+                        }
+                    }
+                });
+                
+                if (statusChanged) {
+                    saveSholatStatus();
+                    updateSholatStats();
+                }
+            }
+
+            // Update next prayer info
+            function updateNextPrayer() {
+                if (!prayerTimes) return;
+                
+                const now = new Date();
+                const prayerOrder = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                let nextPrayerName = 'Fajr'; // Default to tomorrow's Fajr
+                let nextPrayerTime = '00:00';
+                let found = false;
+                
+                for (const prayer of prayerOrder) {
+                    const [hours, minutes] = prayerTimes[prayer].split(':').map(Number);
+                    const prayerTime = new Date();
+                    prayerTime.setHours(hours, minutes, 0, 0);
+                    
+                    if (prayerTime > now) {
+                        nextPrayerName = prayer;
+                        nextPrayerTime = prayerTimes[prayer];
+                        found = true;
+                        
+                        // Calculate time remaining
+                        const timeDiff = prayerTime - now;
+                        const hoursLeft = Math.floor(timeDiff / (1000 * 60 * 60));
+                        const minutesLeft = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+                        const secondsLeft = Math.floor((timeDiff % (1000 * 60)) / 1000);
+                        
+                        timeRemaining.textContent = `${hoursLeft}h ${minutesLeft}m ${secondsLeft}s`;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    timeRemaining.textContent = 'Tomorrow';
+                }
+                
+                const formattedTime = formatTimeForDisplay(nextPrayerTime);
+                nextPrayer.textContent = `${getPrayerName(nextPrayerName)} at ${formattedTime}`;
+                
+                // Update current prayer
+                const currentPrayerName = getCurrentPrayer();
+                currentPrayer.textContent = currentPrayerName ? getPrayerName(currentPrayerName) : 'None';
+            }
+
+            // Get current prayer
+            function getCurrentPrayer() {
+                if (!prayerTimes) return null;
+                
+                const prayerOrder = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                
+                for (const prayer of prayerOrder) {
+                    if (isCurrentPrayerTime(prayer)) {
+                        return prayer;
+                    }
+                }
+                
+                return null;
+            }
+
+            // Mark sholat as completed
+            window.markSholatCompleted = function(prayer) {
+                sholatStatus[prayer] = 'completed';
+                saveSholatStatus();
+                displayPrayerTimes();
+                updateSholatStats();
+                updateWeeklyProgress();
+                showNotification(`${getPrayerName(prayer)} marked as completed! 🙏`, 'success');
+            };
+
+            // Mark sholat as missed
+            window.markSholatMissed = function(prayer) {
+                sholatStatus[prayer] = 'missed';
+                saveSholatStatus();
+                displayPrayerTimes();
+                updateSholatStats();
+                showNotification(`${getPrayerName(prayer)} marked as missed. Don't give up! 💪`, 'error');
+            };
+
+            // Update sholat statistics
+            function updateSholatStats() {
+                const prayersToShow = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                let completed = 0;
+                let missed = 0;
+                
+                prayersToShow.forEach(prayer => {
+                    if (sholatStatus[prayer] === 'completed') completed++;
+                    if (sholatStatus[prayer] === 'missed') missed++;
+                });
+                
+                completedCount.textContent = `${completed}/5`;
+                missedCount.textContent = `${missed}/5`;
+            }
+
+            // Save sholat status
+            function saveSholatStatus() {
+                const today = new Date().toDateString();
+                localStorage.setItem(`sholatStatus_${today}`, JSON.stringify(sholatStatus));
+            }
+
+            // Load sholat status
+            function loadSholatStatus() {
+                const today = new Date().toDateString();
+                const saved = localStorage.getItem(`sholatStatus_${today}`);
+                sholatStatus = saved ? JSON.parse(saved) : {};
+            }
+
+            // Reset sholat status for new day or city
+            function resetSholatStatus() {
+                sholatStatus = {};
+                saveSholatStatus();
+            }
+
+            // Format time for display (24h to 12h)
+            function formatTimeForDisplay(timeStr) {
+                const [hours, minutes] = timeStr.split(':');
+                let hourNum = parseInt(hours);
+                const ampm = hourNum >= 12 ? 'PM' : 'AM';
+                hourNum = hourNum % 12;
+                hourNum = hourNum ? hourNum : 12; // Convert 0 to 12
+                return `${hourNum}:${minutes} ${ampm}`;
+            }
+
+            // Get prayer name in Indonesian
+            function getPrayerName(prayer) {
+                const names = {
+                    'Fajr': 'Subuh',
+                    'Dhuhr': 'Dzuhur',
+                    'Asr': 'Ashar',
+                    'Maghrib': 'Maghrib',
+                    'Isha': 'Isya'
+                };
+                return names[prayer] || prayer;
+            }
+
+            // Load PMO streak
+            function loadPmoStreak() {
+                const streak = localStorage.getItem('pmoStreak') || 0;
+                pmoStreak.textContent = `${streak} days`;
+            }
+
+            // Reset PMO streak
+            function resetPmoStreak() {
+                localStorage.setItem('pmoStreak', 0);
+                pmoStreak.textContent = '0 days';
+                showNotification('Streak reset. You can start fresh!', 'info');
+                updateWeeklyProgress();
+            }
+
+            // Load weekly progress
+            function loadWeeklyProgress() {
+                updateWeeklyProgress();
+            }
+
+            // Update weekly progress
+            function updateWeeklyProgress() {
+                const streak = parseInt(localStorage.getItem('pmoStreak')) || 0;
+                const today = new Date().toDateString();
+                const todaySholatStatus = JSON.parse(localStorage.getItem(`sholatStatus_${today}`)) || {};
+                
+                // Count completed sholat today
+                const prayersToShow = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                const completedToday = prayersToShow.filter(prayer => todaySholatStatus[prayer] === 'completed').length;
+                
+                // Only count as progress if no PMO AND all 5 sholat completed
+                let validDays = 0;
+                for (let i = 0; i < Math.min(streak, 7); i++) {
+                    const checkDate = new Date();
+                    checkDate.setDate(checkDate.getDate() - i);
+                    const dateStr = checkDate.toDateString();
+                    const dayStatus = JSON.parse(localStorage.getItem(`sholatStatus_${dateStr}`)) || {};
+                    const dayCompleted = prayersToShow.filter(prayer => dayStatus[prayer] === 'completed').length;
+                    
+                    if (dayCompleted === 5) validDays++;
+                }
+                
+                const progress = Math.min(validDays, 7);
+                const percent = Math.round((progress / 7) * 100);
+                
+                weeklyProgress.style.width = `${percent}%`;
+                progressText.textContent = `${progress}/7 days`;
+                
+                // Check if week completed
+                if (progress === 7) {
+                    showNotification('🎉 Congratulations! You completed the weekly challenge!', 'success');
+                }
+            }
+
+            // Load custom goals
+            function loadCustomGoals() {
+                const goals = JSON.parse(localStorage.getItem('customGoals')) || [];
+                const defaultGoals = getDefaultGoals();
+                const allGoals = [...defaultGoals, ...goals];
+                
+                let html = '';
+                allGoals.forEach((goal, index) => {
+                    html += `
+                        <div class="game-card p-4 bg-gray-700 rounded-lg mb-3 flex items-start">
+                            <input type="checkbox" class="mr-3 mt-1 goal-checkbox" data-index="${index}" ${goal.completed ? 'checked' : ''}>
+                            <div class="flex-grow">
+                                <h3 class="font-bold ${goal.completed ? 'line-through text-gray-400' : 'text-white'}">${goal.name}</h3>
+                                ${goal.time ? `<p class="text-xs mt-1 text-yellow-300"><i class="far fa-clock mr-1"></i> ${goal.time}</p>` : ''}
+                                ${goal.reward ? `<p class="text-xs mt-1 text-green-400"><i class="fas fa-gift mr-1"></i> ${goal.reward}</p>` : ''}
+                            </div>
+                            ${index >= defaultGoals.length ? `<button onclick="deleteGoal(${index - defaultGoals.length})" class="text-red-400 hover:text-red-300 ml-2"><i class="fas fa-trash"></i></button>` : ''}
+                        </div>
+                    `;
+                });
+                
+                dailyGoals.innerHTML = html;
+                
+                // Add event listeners to checkboxes
+                document.querySelectorAll('.goal-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        toggleGoalComplete(this.dataset.index, this.checked);
+                    });
+                });
+            }
+
+            // Get default daily goals
+            function getDefaultGoals() {
+                return [
+                    {
+                        name: 'No PMO today',
+                        time: '',
+                        reward: 'Bubble tea',
+                        completed: false,
+                        default: true
+                    },
+                    {
+                        name: 'Complete all 5 sholat',
+                        time: '',
+                        reward: 'Special treat',
+                        completed: false,
+                        default: true
+                    },
+                    {
+                        name: 'Riset Goose Goose Duck',
+                        time: '16:00',
+                        reward: 'Es krim kecil',
+                        completed: false,
+                        default: true
+                    },
+                    {
+                        name: 'Rekam video konten',
+                        time: '19:00',
+                        reward: 'Yogurt dengan madu',
+                        completed: false,
+                        default: true
+                    }
+                ];
+            }
+
+            // Save new custom goal
+            function saveNewGoal() {
+                const name = goalName.value.trim();
+                const time = goalTime.value;
+                const reward = goalReward.value.trim();
+                
+                if (!name) {
+                    showNotification('Please enter a quest name', 'error');
+                    return;
+                }
+                
+                const goals = JSON.parse(localStorage.getItem('customGoals')) || [];
+                goals.push({
+                    name,
+                    time,
+                    reward,
+                    completed: false
+                });
+                
+                localStorage.setItem('customGoals', JSON.stringify(goals));
+                loadCustomGoals();
+                goalModal.classList.add('hidden');
+                goalName.value = '';
+                goalTime.value = '';
+                goalReward.value = '';
+                
+                showNotification('New quest added!', 'success');
+            }
+
+            // Delete custom goal
+            window.deleteGoal = function(index) {
+                const goals = JSON.parse(localStorage.getItem('customGoals')) || [];
+                goals.splice(index, 1);
+                localStorage.setItem('customGoals', JSON.stringify(goals));
+                loadCustomGoals();
+                showNotification('Quest deleted!', 'info');
+            };
+
+            // Toggle goal completion
+            function toggleGoalComplete(index, completed) {
+                const defaultGoals = getDefaultGoals();
+                let goals = JSON.parse(localStorage.getItem('customGoals')) || [];
+                const allGoals = [...defaultGoals, ...goals];
+                
+                if (index < allGoals.length) {
+                    if (index < defaultGoals.length) {
+                        // Default goal - save to daily goals status
+                        const today = new Date().toDateString();
+                        let dailyStatus = JSON.parse(localStorage.getItem(`dailyGoals_${today}`)) || {};
+                        dailyStatus[index] = completed;
+                        localStorage.setItem(`dailyGoals_${today}`, JSON.stringify(dailyStatus));
+                    } else {
+                        // Custom goal
+                        goals[index - defaultGoals.length].completed = completed;
+                        localStorage.setItem('customGoals', JSON.stringify(goals));
+                    }
+                    
+                    // Special handling for PMO goal
+                    if (index === 0 && completed) {
+                        const currentStreak = parseInt(localStorage.getItem('pmoStreak')) || 0;
+                        localStorage.setItem('pmoStreak', currentStreak + 1);
+                        pmoStreak.textContent = `${currentStreak + 1} days`;
+                        updateWeeklyProgress();
+                        showNotification('Great! PMO-free day completed! 🎉', 'success');
+                    }
+                    
+                    // Check if all sholat completed for goal #2
+                    if (index === 1 && completed) {
+                        const prayersToShow = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+                        const completedSholat = prayersToShow.filter(prayer => sholatStatus[prayer] === 'completed').length;
+                        if (completedSholat === 5) {
+                            showNotification('Amazing! All 5 sholat completed! 🕌✨', 'success');
+                        }
+                    }
+                    
+                    showNotification('Quest updated!', 'success');
+                }
+            }
+
+            // Load rewards
+            function loadRewards() {
+                const rewards = [
+                    { icon: 'fa-calendar-check', name: 'Daily Reward', description: 'Small treats for daily goals' },
+                    { icon: 'fa-trophy', name: 'Weekly Reward', description: 'Waffle + Es Krim Cokelat' },
+                    { icon: 'fa-gamepad', name: 'GGD Sticker', description: 'For VTuber setup' },
+                    { icon: 'fa-star', name: 'Perfect Day', description: 'All sholat + No PMO' }
+                ];
+                
+                let html = '';
+                rewards.forEach(reward => {
+                    html += `
+                        <div class="p-4 bg-gray-700 rounded-lg flex items-start mb-3">
+                            <i class="fas ${reward.icon} text-2xl mr-3 text-yellow-400"></i>
+                            <div>
+                                <h3 class="font-bold">${reward.name}</h3>
+                                <p class="text-sm text-gray-300">${reward.description}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                rewardsList.innerHTML = html;
+            }
+
+            // Show loading state
+            function showLoading() {
+                loadingTimes.classList.remove('hidden');
+                sholatTimes.classList.add('hidden');
+                errorMessage.classList.add('hidden');
+            }
+
+            // Hide loading
+            function hideLoading() {
+                loadingTimes.classList.add('hidden');
+            }
+
+            // Show error
+            function showError() {
+                loadingTimes.classList.add('hidden');
+                sholatTimes.classList.add('hidden');
+                errorMessage.classList.remove('hidden');
+            }
+
+            // Show notification
+            function showNotification(message, type) {
+                // Browser notification
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('SholatQuest', {
+                        body: message,
+                        icon: 'https://img.icons8.com/color/48/000000/islam.png'
+                    });
+                }
+                
+                // In-app notification
+                const notification = document.createElement('div');
+                notification.className = `p-4 rounded-lg shadow-lg flex items-start ${type === 'success' ? 'bg-green-800' : type === 'error' ? 'bg-red-800' : 'bg-blue-800'}`;
+                notification.innerHTML = `
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} mr-2 mt-1"></i>
+                    <div class="flex-grow">
+                        <p class="font-bold">${type === 'success' ? 'Success!' : type === 'error' ? 'Alert' : 'Info'}</p>
+                        <p class="text-sm">${message}</p>
+                    </div>
+                    <button class="ml-4 close-notification hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                notificationContainer.appendChild(notification);
+                
+                // Auto remove after 5 seconds
+                setTimeout(() => {
+                    notification.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                    setTimeout(() => notification.remove(), 300);
+                }, 5000);
+                
+                // Close button
+                notification.querySelector('.close-notification').addEventListener('click', () => {
+                    notification.remove();
+                });
+            }
+
+            // Cleanup when page unloads
+            window.addEventListener('beforeunload', () => {
+                if (realTimeInterval) {
+                    clearInterval(realTimeInterval);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
